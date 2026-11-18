@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keringnet Broadband - Operations & Ticketing Portal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS v2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen">
+
+    <!-- REAL-TIME NOTIFICATION BANNER -->
+    <div id="notification-banner" class="fixed top-5 right-5 z-50 transform translate-y-[-200px] transition-transform duration-300 bg-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center space-x-4 border border-emerald-400">
+        <svg class="w-8 h-8 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <div>
+            <h4 id="banner-title" class="font-bold text-lg">New Job Assigned!</h4>
+            <p id="banner-desc" class="text-sm text-emerald-100">Check your active queue immediately.</p>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app" class="container mx-auto px-4 py-8">
+
+        <!-- HEADER -->
+        <header class="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-500 text-slate-900 font-black px-3 py-1.5 rounded-lg text-xl tracking-wider">KN</div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Keringnet Operations</h1>
+                    <p class="text-xs text-slate-400">Mowlem & Kwa Maji Field Dispatch System</p>
+                </div>
+            </div>
+            <div id="user-session-box" class="hidden flex items-center space-x-4">
+                <span id="session-user-badge" class="text-sm bg-slate-800 px-3 py-1 rounded-full text-emerald-400 font-medium"></span>
+                <button onclick="handleLogout()" class="bg-rose-600 hover:bg-rose-700 text-white text-sm px-4 py-2 rounded-lg transition font-semibold">Logout</button>
+            </div>
+        </header>
+
+        <!-- 1. LOGIN VIEW -->
+        <section id="login-view" class="max-w-md mx-auto bg-slate-800 p-8 rounded-2xl shadow-xl border border-slate-700 mt-12">
+            <h2 class="text-2xl font-bold mb-6 text-center text-white">Staff Portal Login</h2>
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Work Email</label>
+                    <input type="email" id="login-email" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Password</label>
+                    <input type="password" id="login-password" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 rounded-lg transition shadow-lg">Access Dashboard</button>
+            </form>
+        </section>
+
+        <!-- 2. DASHBOARD PANELS (Hidden until login) -->
+
+        <!-- SUPER ADMIN DASHBOARD -->
+        <div id="panel-super_admin" class="dashboard-panel hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <p class="text-slate-400 text-sm">Total Tickets</p>
+                    <h3 id="stat-total" class="text-3xl font-bold text-white mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <p class="text-slate-400 text-sm">Pending Dispatches</p>
+                    <h3 id="stat-pending" class="text-3xl font-bold text-amber-400 mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <p class="text-slate-400 text-sm">Completed Jobs</p>
+                    <h3 id="stat-completed" class="text-3xl font-bold text-emerald-400 mt-1">0</h3>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <p class="text-slate-400 text-sm">Escalations</p>
+                    <h3 id="stat-escalated" class="text-3xl font-bold text-rose-400 mt-1">0</h3>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h3 class="text-lg font-bold mb-4 text-white">Master Ticket Audit Log</h3>
+                <div id="admin-tickets-list" class="overflow-x-auto">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- DISPATCHER DASHBOARD -->
+        <div id="panel-dispatch" class="dashboard-panel hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Create Ticket Form -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-1">
+                <h3 class="text-lg font-bold mb-4 text-white">Create Client & Ticket</h3>
+                <form onsubmit="handleCreateTicket(event)" class="space-y-3">
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Account Number</label>
+                        <input type="text" id="t-account" value="KB0001" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Client Full Name</label>
+                        <input type="text" id="t-name" placeholder="e.g. John Kamau" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Phone Number</label>
+                        <input type="text" id="t-phone" placeholder="0712345678" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">Plot Name</label>
+                            <input type="text" id="t-plot" placeholder="Kwa Maji Hse" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">House No.</label>
+                            <input type="text" id="t-house" placeholder="B4" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Package Type</label>
+                        <select id="t-package" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                            <option value="10 Mbps (KES 1,000)">10 Mbps (KES 1,000)</option>
+                            <option value="16 Mbps (KES 1,500)">16 Mbps (KES 1,500)</option>
+                            <option value="20 Mbps (KES 2,000)">20 Mbps (KES 2,000)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Ticket Type & Issue</label>
+                        <select id="t-type" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 mb-2 text-white">
+                            <option value="Installation">New Installation</option>
+                            <option value="Support Fault">Support Fault</option>
+                            <option value="Maintenance">Maintenance</option>
+                        </select>
+                        <textarea id="t-desc" placeholder="Describe issue / installation requirements..." required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white h-20"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 font-semibold">Assign Technician</label>
+                        <select id="t-tech" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                            <!-- Populated via JS -->
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 rounded-lg transition">Dispatch Ticket</button>
+                </form>
+            </div>
+            <!-- Active Dispatch Queue -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-2">
+                <h3 class="text-lg font-bold mb-4 text-white">Active Dispatches & Queue</h3>
+                <div id="dispatch-tickets-list" class="space-y-3">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TECHNICIAN DASHBOARD -->
+        <div id="panel-technician" class="dashboard-panel hidden space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h3 class="text-xl font-bold mb-2 text-white">My Assigned Field Jobs</h3>
+                <p class="text-sm text-slate-400 mb-6">Real-time dispatches sent directly to your device.</p>
+                <div id="technician-jobs-list" class="space-y-4">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- QC DASHBOARD -->
+        <div id="panel-qc" class="dashboard-panel hidden space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                <h3 class="text-xl font-bold mb-4 text-white">Quality Control & Escalations</h3>
+                <div id="qc-tickets-list" class="space-y-4">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- APPLICATION CONTROLLER SCRIPT -->
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+
+        // ==========================================
+        // KERINGNET SUPABASE CREDENTIALS CONFIGURATION
+        // ==========================================
+        const SUPABASE_URL = 'https://fbdclcnwhccjhjefoaqp.supabase.co'
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiZGNsY253aGNjamhqZWZvYXFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwMjU5MDgsImV4cCI6MjExMDYwMTkwOH0.8Hchx-c9rYn5m1TNI2fl2ccQHpjHaH8CZGT5kMLAPmE'
+        
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+        let currentUser = null
+        let currentProfile = null
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+                await handleSuccessfulLogin(session.user)
+            }
+        })
+
+        window.handleLogin = async function(e) {
+            e.preventDefault()
+            const email = document.getElementById('login-email').value
+            const password = document.getElementById('login-password').value
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+            if (error) {
+                alert('Login Failed: ' + error.message)
+                return
+            }
+            await handleSuccessfulLogin(data.user)
+        }
+
+        async function handleSuccessfulLogin(user) {
+            currentUser = user
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single()
+
+            if (error || !profile) {
+                alert('User profile not found in database.')
+                return
+            }
+
+            currentProfile = profile
+            document.getElementById('login-view').classList.add('hidden')
+            document.getElementById('user-session-box').classList.remove('hidden')
+            document.getElementById('session-user-badge').textContent = `${profile.full_name} (${profile.role.toUpperCase()})`
+
+            renderDashboard(profile.role)
+        }
+
+        window.handleLogout = async function() {
+            await supabase.auth.signOut()
+            location.reload()
+        }
+
+        function renderDashboard(role) {
+            document.querySelectorAll('.dashboard-panel').forEach(p => p.classList.add('hidden'))
+            const panel = document.getElementById(`panel-${role}`)
+            if (panel) panel.classList.remove('hidden')
+
+            if (role === 'super_admin') loadSuperAdminData()
+            if (role === 'dispatch') {
+                loadDispatchQueue()
+                loadTechniciansDropdown()
+            }
+            if (role === 'technician') {
+                loadTechnicianJobs(currentUser.id)
+                initRealtimeListener(currentUser.id)
+            }
+            if (role === 'qc') loadQcData()
+        }
+
+        // ==========================================
+        // DISPATCHER FUNCTIONS
+        // ==========================================
+        async function loadTechniciansDropdown() {
+            const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'technician')
+            const select = document.getElementById('t-tech')
+            if (data) {
+                select.innerHTML = data.map(t => `<option value="${t.id}">${t.full_name}</option>`).join('')
+            }
+        }
+
+        window.handleCreateTicket = async function(e) {
+            e.preventDefault()
+            const account_no = document.getElementById('t-account').value
+            const full_name = document.getElementById('t-name').value
+            const phone = document.getElementById('t-phone').value
+            const plot_name = document.getElementById('t-plot').value
+            const house_no = document.getElementById('t-house').value
+            const package_type = document.getElementById('t-package').value
+            const ticket_type = document.getElementById('t-type').value
+            const issue_description = document.getElementById('t-desc').value
+            const assigned_technician_id = document.getElementById('t-tech').value
+
+            // 1. Insert Client
+            const { data: client, error: cError } = await supabase.from('clients').insert([{
+                account_no, full_name, phone, plot_name, house_no, package_type
+            }]).select().single()
+
+            if (cError) { alert('Error creating client: ' + cError.message); return; }
+
+            // 2. Insert Ticket
+            const ticket_no = 'TKT-' + Math.floor(1000 + Math.random() * 9000)
+            const { error: tError } = await supabase.from('tickets').insert([{
+                ticket_no,
+                client_id: client.id,
+                ticket_type,
+                issue_description,
+                status: 'Assigned',
+                assigned_technician_id,
+                dispatcher_id: currentUser.id
+            }])
+
+            if (tError) { alert('Error creating ticket: ' + tError.message); return; }
+
+            alert('Ticket created and dispatched successfully!')
+            e.target.reset()
+            loadDispatchQueue()
+        }
+
+        async function loadDispatchQueue() {
+            const { data } = await supabase.from('tickets').select('*, clients(*), profiles!assigned_technician_id(full_name)').order('created_at', { ascending: false })
+            const container = document.getElementById('dispatch-tickets-list')
+            if (!data) return
+            container.innerHTML = data.map(t => `
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">${t.ticket_no}</span>
+                        <h4 class="font-bold text-white mt-1">${t.clients?.full_name || 'Client'} (${t.clients?.account_no || 'KB0000'})</h4>
+                        <p class="text-xs text-slate-400">${t.clients?.plot_name}, House ${t.clients?.house_no} | Tech: <strong>${t.profiles?.full_name || 'Unassigned'}</strong></p>
+                    </div>
+                    <span class="px-3 py-1 rounded text-xs font-semibold ${t.status === 'Completed' ? 'bg-emerald-600 text-white' : t.status === 'Escalated' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-slate-900'}">${t.status}</span>
+                </div>
+            `).join('')
+        }
+
+        // ==========================================
+        // TECHNICIAN FUNCTIONS & REALTIME
+        // ==========================================
+        async function loadTechnicianJobs(techId) {
+            const { data } = await supabase.from('tickets').select('*, clients(*)').eq('assigned_technician_id', techId).order('created_at', { ascending: false })
+            const container = document.getElementById('technician-jobs-list')
+            if (!data || data.length === 0) {
+                container.innerHTML = `<p class="text-slate-400">No active jobs assigned.</p>`
+                return
+            }
+            container.innerHTML = data.map(j => `
+                <div class="bg-slate-900 p-5 rounded-xl border border-slate-700 space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded font-bold">${j.ticket_no} - ${j.ticket_type}</span>
+                            <h4 class="text-lg font-bold text-white mt-2">${j.clients?.full_name} (${j.clients?.account_no})</h4>
+                            <p class="text-sm text-slate-300">📍 ${j.clients?.plot_name}, House ${j.clients?.house_no}</p>
+                            <p class="text-sm text-slate-400 mt-1">📞 Phone: <a href="tel:${j.clients?.phone}" class="text-emerald-400 underline">${j.clients?.phone}</a></p>
+                        </div>
+                        <span class="px-3 py-1 rounded text-xs font-semibold ${j.status === 'Completed' ? 'bg-emerald-600 text-white' : j.status === 'Escalated' ? 'bg-rose-600 text-white' : 'bg-amber-500 text-slate-900'}">${j.status}</span>
+                    </div>
+                    <p class="text-sm bg-slate-800 p-3 rounded text-slate-300"><strong>Issue:</strong> ${j.issue_description}</p>
+                    ${j.status !== 'Completed' ? `
+                        <div class="flex space-x-3 pt-2">
+                            <button onclick="completeJob('${j.id}')" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-2 rounded">Mark Completed</button>
+                            <button onclick="escalateJob('${j.id}')" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded">Escalate Issue</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')
+        }
+
+        function initRealtimeListener(techId) {
+            supabase.channel('public:tickets')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets', filter: `assigned_technician_id=eq.${techId}` }, payload => {
+                    playChime()
+                    showBanner("New Job Assigned!", payload.new.issue_description)
+                    loadTechnicianJobs(techId)
+                })
+                .subscribe()
+        }
+
+        window.completeJob = async function(ticketId) {
+            const router_serial = prompt("Enter Installed Router / Meter Serial Number:")
+            if (!router_serial) return
+            const { error } = await supabase.from('tickets').update({ status: 'Completed', router_serial, completion_time: new Date() }).eq('id', ticketId)
+            if (error) alert(error.message)
+            else { alert('Job marked completed!'); loadTechnicianJobs(currentUser.id); }
+        }
+
+        window.escalateJob = async function(ticketId) {
+            const qc_notes = prompt("Reason for escalation (e.g. port full / client not home):")
+            if (!qc_notes) return
+            const { error } = await supabase.from('tickets').update({ status: 'Escalated', qc_notes }).eq('id', ticketId)
+            if (error) alert(error.message)
+            else { alert('Job escalated to QC/Dispatch.'); loadTechnicianJobs(currentUser.id); }
+        }
+
+        function playChime() {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
+            audio.play().catch(e => console.log(e))
+        }
+
+        function showBanner(title, desc) {
+            const b = document.getElementById('notification-banner')
+            document.getElementById('banner-title').textContent = title
+            document.getElementById('banner-desc').textContent = desc
+            b.classList.remove('translate-y-[-200px]')
+            setTimeout(() => b.classList.add('translate-y-[-200px]'), 8000)
+        }
+
+        // ==========================================
+        // SUPER ADMIN & QC FUNCTIONS
+        // ==========================================
+        async function loadSuperAdminData() {
+            const { data: tickets } = await supabase.from('tickets').select('*, clients(*), profiles!assigned_technician_id(full_name)')
+            if (!tickets) return
+            document.getElementById('stat-total').textContent = tickets.length
+            document.getElementById('stat-pending').textContent = tickets.filter(t => t.status === 'Pending').length
+            document.getElementById('stat-completed').textContent = tickets.filter(t => t.status === 'Completed').length
+            document.getElementById('stat-escalated').textContent = tickets.filter(t => t.status === 'Escalated').length
+
+            const container = document.getElementById('admin-tickets-list')
+            container.innerHTML = `
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="p-3">Ticket</th>
+                            <th class="p-3">Client</th>
+                            <th class="p-3">Type</th>
+                            <th class="p-3">Assigned Tech</th>
+                            <th class="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tickets.map(t => `
+                            <tr class="border-b border-slate-700">
+                                <td class="p-3 font-bold text-emerald-400">${t.ticket_no}</td>
+                                <td class="p-3">${t.clients?.full_name} (${t.clients?.account_no})</td>
+                                <td class="p-3">${t.ticket_type}</td>
+                                <td class="p-3">${t.profiles?.full_name || 'Unassigned'}</td>
+                                <td class="p-3"><span class="px-2 py-0.5 rounded text-xs ${t.status === 'Completed' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-slate-900'}">${t.status}</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `
+        }
+
+        async function loadQcData() {
+            const { data } = await supabase.from('tickets').select('*, clients(*), profiles!assigned_technician_id(full_name)').eq('status', 'Escalated')
+            const container = document.getElementById('qc-tickets-list')
+            if (!data || data.length === 0) {
+                container.innerHTML = `<p class="text-slate-400">No escalated tickets requiring review.</p>`
+                return
+            }
+            container.innerHTML = data.map(t => `
+                <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs bg-rose-500/20 text-rose-400 px-2 py-1 rounded font-bold">${t.ticket_no} - ESCALATED</span>
+                        <h4 class="font-bold text-white mt-1">${t.clients?.full_name} (${t.clients?.account_no})</h4>
+                        <p class="text-xs text-slate-400">Reason: ${t.qc_notes || 'None provided'}</p>
+                    </div>
+                </div>
+            `).join('')
+        }
+    </script>
+</body>
+</html>
