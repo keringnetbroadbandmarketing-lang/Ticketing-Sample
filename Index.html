@@ -76,10 +76,57 @@
                     <h3 id="stat-escalated" class="text-3xl font-bold text-rose-400 mt-1">0</h3>
                 </div>
             </div>
+
+            <!-- Master Ticket Audit Log -->
             <div class="bg-slate-800 p-6 rounded-xl border border-slate-700">
                 <h3 class="text-lg font-bold mb-4 text-white">Master Ticket Audit Log</h3>
                 <div id="admin-tickets-list" class="overflow-x-auto">
                     <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- STAFF MANAGEMENT SECTION -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
+                <!-- Create Staff Form -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-1">
+                    <h3 class="text-lg font-bold mb-4 text-white">Add New Staff Member</h3>
+                    <form onsubmit="handleCreateStaff(event)" class="space-y-3">
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">Staff Full Name</label>
+                            <input type="text" id="staff-name" placeholder="e.g. Paul Aseka" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">Work Email</label>
+                            <input type="email" id="staff-email" placeholder="paul@keringnet.co.ke" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">Temporary Password</label>
+                            <input type="password" id="staff-password" placeholder="••••••••" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">Phone Number</label>
+                            <input type="text" id="staff-phone" placeholder="0712345678" class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-semibold">System Role</label>
+                            <select id="staff-role" required class="w-full bg-slate-900 border border-slate-700 rounded p-2.5 text-white">
+                                <option value="technician">Technician</option>
+                                <option value="dispatch">Dispatcher</option>
+                                <option value="qc">Quality Control (QC)</option>
+                                <option value="maintenance">Maintenance Specialist</option>
+                                <option value="super_admin">Super Admin</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold py-3 rounded-lg transition">Create Staff Account</button>
+                    </form>
+                </div>
+
+                <!-- Staff Directory List -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 lg:col-span-2">
+                    <h3 class="text-lg font-bold mb-4 text-white">Active Staff Directory</h3>
+                    <div id="staff-directory-list" class="overflow-x-auto">
+                        <!-- Populated via JS -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -385,6 +432,64 @@
         }
 
         // ==========================================
+        // SUPER ADMIN: STAFF CREATION & DIRECTORY
+        // ==========================================
+        window.handleCreateStaff = async function(e) {
+            e.preventDefault()
+            const full_name = document.getElementById('staff-name').value
+            const email = document.getElementById('staff-email').value
+            const password = document.getElementById('staff-password').value
+            const phone = document.getElementById('staff-phone').value
+            const role = document.getElementById('staff-role').value
+
+            const { error } = await supabase.rpc('admin_create_staff_user', {
+                user_email: email,
+                user_password: password,
+                user_full_name: full_name,
+                user_role: role,
+                user_phone: phone
+            })
+
+            if (error) {
+                alert('Error creating staff account: ' + error.message)
+                return
+            }
+
+            alert(`Staff account for ${full_name} (${role.toUpperCase()}) created successfully!`)
+            e.target.reset()
+            loadSuperAdminData()
+        }
+
+        async function loadStaffDirectory() {
+            const { data: staff } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+            const container = document.getElementById('staff-directory-list')
+            if (!staff) return
+
+            container.innerHTML = `
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900 text-xs uppercase text-slate-400">
+                        <tr>
+                            <th class="p-3">Name</th>
+                            <th class="p-3">Role</th>
+                            <th class="p-3">Phone</th>
+                            <th class="p-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${staff.map(s => `
+                            <tr class="border-b border-slate-700">
+                                <td class="p-3 font-bold text-white">${s.full_name}</td>
+                                <td class="p-3"><span class="bg-slate-700 text-emerald-400 px-2 py-0.5 rounded text-xs font-semibold">${s.role.toUpperCase()}</span></td>
+                                <td class="p-3">${s.phone || 'N/A'}</td>
+                                <td class="p-3"><span class="px-2 py-0.5 rounded text-xs ${s.is_active ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}">${s.is_active ? 'Active' : 'Inactive'}</span></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `
+        }
+
+        // ==========================================
         // SUPER ADMIN & QC FUNCTIONS
         // ==========================================
         async function loadSuperAdminData() {
@@ -420,6 +525,9 @@
                     </tbody>
                 </table>
             `
+
+            // Also load the staff directory table
+            loadStaffDirectory()
         }
 
         async function loadQcData() {
